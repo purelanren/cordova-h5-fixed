@@ -194,14 +194,18 @@ const pickImage = (() => {
   }
 })()
 
+// 因为无法做到cordova和h5交互表现一致，所以返回false提醒使用者
 export const takePhoto = register('takePhoto')(
   'navigator.camera.getPicture',
-  option => pickImage(Object.assign({}, option, { sourceType: window.Camera.PictureSourceType.CAMERA }))
+  option => pickImage(Object.assign({}, option, { sourceType: window.Camera.PictureSourceType.CAMERA })),
+  () => false
 )
 
+// 因为无法做到cordova和h5交互表现一致，所以返回false提醒使用者
 export const getPhoto = register('takePhoto')(
   'navigator.camera.getPicture',
-  option => pickImage(Object.assign({}, option, { sourceType: window.Camera.PictureSourceType.SAVEDPHOTOALBUM }))
+  option => pickImage(Object.assign({}, option, { sourceType: window.Camera.PictureSourceType.SAVEDPHOTOALBUM })),
+  () => false
 )
 
 /**
@@ -303,6 +307,7 @@ const openLocalFile = register('openLocalFile')(
 )
 
 // 暂时使用默认的临时文件存储，不保存pdf文件
+// opener: generatorOpen(target, optionStr) 兼容异步打开的情形，同步则可忽略该参数
 export const openPdf = register('openPdf')(
   'cordova.plugins.fileOpener2.open',
   option => {
@@ -317,7 +322,10 @@ export const openPdf = register('openPdf')(
       onError
     })
   },
-  download
+  option => {
+    const { url, opener = open } = option
+    return opener(url, '_system')
+  }
 )
 
 // 暂时使用默认的临时文件存储，不保存apk文件
@@ -335,7 +343,7 @@ export const installApk = register('openPdf')(
       onError
     })
   },
-  download
+  option => open(option.url, '_system')
 )
 
 // 如果有等待响应的方法则注册事件
@@ -344,5 +352,6 @@ if (queque.length !== 0) {
     queque.forEach(({ name, latchKeys, fn }) => {
       store[name] = getLatch(latchKeys) ? fn : store[name]
     })
+    queque = []
   })
 }
