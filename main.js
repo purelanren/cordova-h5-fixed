@@ -41,6 +41,26 @@ const getSaveType = type => {
   return typeArr.indexOf(type) === -1 ? window.LocalFileSystem.TEMPORARY : type
 }
 
+const getFilenameFromUrl = (url = '') => {
+  const urlMatchArr = url.match(/^https?:\/\/.*\/(.+\.\w+)$/)
+  if (!urlMatchArr) {
+    return ''
+  }
+  return urlMatchArr[1]
+}
+
+const getSafeFilename = (filename = '') => {
+  const filenameMatchArr = filename.match(/^(.+)\.(\w+)$/)
+  const tempName = `temp-filename-${Date.now()}`
+  if (!filenameMatchArr) {
+    return tempName
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(filenameMatchArr[1].replace(/\./g, ''))) {
+    return `${tempName}.${filenameMatchArr[2]}`
+  }
+  return filename
+}
+
 // 方法寄存器
 let store = {}
 // 方法和验证值hash表
@@ -131,7 +151,7 @@ export const generatorOpen = register('generatorOpen')(
  */
 let networkMap = null
 export const getNetworkType = register('getNetworkType')(
-  'navigator.connection',
+  'navigator.connection.type, Connection.UNKNOWN',
   () => {
     if (!networkMap) {
       networkMap = {}
@@ -153,7 +173,7 @@ export const getNetworkType = register('getNetworkType')(
  * @returns {Boolean}
  */
 export const isOnline = register('isOnline')(
-  'navigator.connection',
+  'navigator.connection.type, Connection.UNKNOWN',
   () => getNetworkType() !== 'none',
   () => window.navigator.onLine
 )
@@ -278,16 +298,14 @@ export const download = register('download')(
   option => {
     let { url, filename, size, type, onProgress = empty, onSuccess = empty, onError = empty } = option
 
-    const urlMatchArr = url.match(/^https?:\/\/.*\/(.+\.\w+)$/)
-    if (!urlMatchArr) {
+    if (!/^https?:\/\/.*$/.test(url)) {
       onError(new Error('不是合法的路径'))
       return
     }
 
-    const finalFilename = filename || window.decodeURIComponent(urlMatchArr[1])
+    let finalFilename = filename || getFilenameFromUrl(url)
     if (!finalFilename) {
-      onError(new Error('请传入文件名称'))
-      return
+      finalFilename = getSafeFilename()
     }
 
     createLocalFile({
@@ -345,14 +363,19 @@ const openLocalFile = register('openLocalFile')(
 )
 
 // 暂时使用默认的临时文件存储，不保存pdf文件
+// fileOpener2插件只支持a-zA-Z0-9_-.字符集的文件名，因此对文件名做特殊处理
 // opener: generatorOpen(target, optionStr) 兼容异步打开的情形，同步则可忽略该参数
 export const openPdf = register('openPdf')(
   'cordova.plugins.fileOpener2.open',
   option => {
     const { url, filename, onProgress = empty, onSuccess = empty, onError = empty } = option
+    let finalFilename = filename
+    if (!finalFilename) {
+      finalFilename = getFilenameFromUrl(url)
+    }
     download({
       url,
-      filename,
+      filename: getSafeFilename(finalFilename),
       onProgress,
       onSuccess (fileUri) {
         openLocalFile(fileUri, 'application/pdf').then(onSuccess, onError)
@@ -369,13 +392,18 @@ export const openPdf = register('openPdf')(
 )
 
 // 暂时使用默认的临时文件存储，不保存apk文件
+// fileOpener2插件只支持a-zA-Z0-9_-.字符集的文件名，因此对文件名做特殊处理
 export const installApk = register('installApk')(
   'cordova.plugins.fileOpener2.open',
   option => {
     const { url, filename, onProgress = empty, onSuccess = empty, onError = empty } = option
+    let finalFilename = filename
+    if (!finalFilename) {
+      finalFilename = getFilenameFromUrl(url)
+    }
     download({
       url,
-      filename,
+      filename: getSafeFilename(finalFilename),
       onProgress,
       onSuccess (fileUri) {
         openLocalFile(fileUri, 'application/vnd.android.package-archive').then(onSuccess, onError)
