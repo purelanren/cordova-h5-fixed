@@ -96,6 +96,15 @@ const register = name => (latchKeys, fn = empty, fixedFn = empty) => {
 }
 
 /**
+ * @returns {Boolean}
+ */
+export const isApp = register('isApp')(
+  'cordova',
+  () => window.device.platform,
+  () => false
+)
+
+/**
  * 向外提供原生方法有效性验证
  * @param  {String} registered method name
  * @returns {Boolean}
@@ -292,6 +301,7 @@ const createLocalFile = option => {
  *   onError: Function(error)
  *   opener: generatorOpen(target, optionStr) 兼容异步打开的情形，同步则可忽略该参数
  * }
+ * @returns {Function} abort
  */
 export const download = register('download')(
   'FileTransfer',
@@ -300,7 +310,7 @@ export const download = register('download')(
 
     if (!/^https?:\/\/.*$/.test(url)) {
       onError(new Error('不是合法的路径'))
-      return
+      return empty
     }
 
     let finalFilename = filename || getFilenameFromUrl(url)
@@ -308,6 +318,7 @@ export const download = register('download')(
       finalFilename = getSafeFilename()
     }
 
+    const fileTransfer = new window.FileTransfer()
     createLocalFile({
       filename: finalFilename,
       size: getByteNumber(size),
@@ -315,7 +326,6 @@ export const download = register('download')(
     }).then(
       fileEntry => {
         const localPath = fileEntry.toURL()
-        const fileTransfer = new window.FileTransfer()
         fileTransfer.download(
           url,
           localPath,
@@ -338,6 +348,9 @@ export const download = register('download')(
       },
       onError
     )
+    return function () {
+      fileTransfer.abort()
+    }
   },
   option => {
     const { url = 'about:blank', opener = open } = option
@@ -373,14 +386,14 @@ export const openPdf = register('openPdf')(
     if (!finalFilename) {
       finalFilename = getFilenameFromUrl(url)
     }
-    download({
+    return download({
       url,
       filename: getSafeFilename(finalFilename),
       onProgress,
       onSuccess (fileUri) {
         openLocalFile(fileUri, 'application/pdf').then(onSuccess, onError)
       },
-      onErrorc (err) {
+      onError (err) {
         onError(err)
       }
     })
@@ -401,7 +414,7 @@ export const installApk = register('installApk')(
     if (!finalFilename) {
       finalFilename = getFilenameFromUrl(url)
     }
-    download({
+    return download({
       url,
       filename: getSafeFilename(finalFilename),
       onProgress,
@@ -416,6 +429,18 @@ export const installApk = register('installApk')(
     open(url, '_system')
   }
 )
+
+// cordova准备完成后的执行回调
+export const cordovaReady = (fn, latchKeys = 'cordova') => {
+  if (validateLatch(latchKeys)) {
+    fn()
+  }
+  document.addEventListener('deviceready', () => {
+    if (validateLatch(latchKeys)) {
+      fn()
+    }
+  })
+}
 
 // 如果有等待响应的方法则注册事件
 if (queque.length !== 0) {
