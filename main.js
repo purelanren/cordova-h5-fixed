@@ -99,7 +99,7 @@ const register = name => (latchKeys, fn = empty, fixedFn = empty) => {
  * @returns {Boolean}
  */
 export const isApp = register('isApp')(
-  'cordova',
+  'device.cordova',
   () => window.device.platform,
   () => false
 )
@@ -433,7 +433,7 @@ export const installApk = register('installApk')(
 // cordova准备完成后的执行回调
 export const cordovaReady = (fn, latchKeys = 'cordova') => {
   if (validateLatch(latchKeys)) {
-    fn()
+    return fn()
   }
   document.addEventListener('deviceready', () => {
     if (validateLatch(latchKeys)) {
